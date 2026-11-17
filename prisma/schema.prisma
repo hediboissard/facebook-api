@@ -1,0 +1,218 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  nom       String
+  prenom    String
+  createdAt DateTime @default(now())
+
+  organizedEvents     Event[]            @relation("EventOrganizers")
+  participatingEvents Event[]            @relation("EventParticipants")
+  adminGroups         Group[]            @relation("GroupAdmins")
+  memberGroups        Group[]            @relation("GroupMembers")
+  messages            Message[]
+  comments            Comment[]
+  photos              Photo[]
+  photoComments       PhotoComment[]
+  pollAnswers         PollAnswer[]
+  shoppingItems       ShoppingListItem[]
+  carpools            Carpool[]          @relation("DriverCarpools")
+}
+
+model Event {
+  id              String       @id @default(uuid())
+  nom             String
+  description     String
+  dateDebut       DateTime
+  dateFin         DateTime
+  lieu            String
+  photoCouverture String?
+  visibilite      Visibilite   @default(PUBLIC)
+  
+  organisateurs   User[]       @relation("EventOrganizers")
+  participants    User[]       @relation("EventParticipants")
+  groupeId        String?
+  groupe          Group?       @relation(fields: [groupeId], references: [id])
+  filDiscussion   Discussion?
+  albumPhotos     PhotoAlbum?
+  sondages        Poll[]
+  billetsTypes    TicketType[]
+  shoppingList    ShoppingListItem[]
+  carpools        Carpool[]
+}
+
+enum Visibilite {
+  PUBLIC
+  PRIVE
+}
+
+model Group {
+  id                String       @id @default(uuid())
+  nom               String
+  description       String
+  icone             String?
+  photoCouverture   String?
+  typeGroup         TypeGroup    @default(PUBLIC)
+  allowMemberPost   Boolean      @default(true)
+  allowMemberEvent  Boolean      @default(true)
+
+  admins            User[]       @relation("GroupAdmins")
+  membres           User[]       @relation("GroupMembers")
+  evenements        Event[]
+  filDiscussion     Discussion?
+}
+
+enum TypeGroup {
+  PUBLIC
+  PRIVE
+  SECRET
+}
+
+model Discussion {
+  id        String    @id @default(uuid())
+  eventId   String?   @unique
+  event     Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  groupId   String?   @unique
+  group     Group?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  messages  Message[]
+}
+
+model Message {
+  id           String    @id @default(uuid())
+  contenu      String
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User      @relation(fields: [authorId], references: [id])
+  commentaires Comment[]
+  createdAt    DateTime  @default(now())
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  contenu   String
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model PhotoAlbum {
+  id      String   @id @default(uuid())
+  eventId String   @unique
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photos  Photo[]
+}
+
+model Photo {
+  id           String        @id @default(uuid())
+  url          String
+  albumId      String
+  album        PhotoAlbum    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User          @relation(fields: [authorId], references: [id])
+  commentaires PhotoComment[]
+}
+
+model PhotoComment {
+  id        String   @id @default(uuid())
+  contenu   String
+  photoId   String
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model Poll {
+  id        String         @id @default(uuid())
+  titre     String
+  eventId   String
+  event     Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  questions PollQuestion[]
+}
+
+model PollQuestion {
+  id          String       @id @default(uuid())
+  libelle     String
+  pollId      String
+  poll        Poll         @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  reponses    PollOption[]
+  answers     PollAnswer[]
+}
+
+model PollOption {
+  id         String       @id @default(uuid())
+  texte      String
+  questionId String
+  question   PollQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers    PollAnswer[]
+}
+
+model PollAnswer {
+  id         String       @id @default(uuid())
+  questionId String
+  question   PollQuestion @relation(fields: [questionId], references: [id])
+  optionId   String
+  option     PollOption   @relation(fields: [optionId], references: [id])
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+
+  @@unique([questionId, userId])
+}
+
+model TicketType {
+  id         String   @id @default(uuid())
+  nom        String
+  montant    Float
+  quantite   Int
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  achats     Ticket[]
+}
+
+model Ticket {
+  id           String     @id @default(uuid())
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  nom          String
+  prenom       String
+  adresse      String
+  dateAchat    DateTime   @default(now())
+
+  @@unique([ticketTypeId])
+}
+
+model ShoppingListItem {
+  id            String   @id @default(uuid())
+  nom           String
+  quantite      Int
+  heureArrivee  String
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, nom])
+}
+
+model Carpool {
+  id                String   @id @default(uuid())
+  lieuDepart        String
+  heureDepart       String
+  prixPropose       Float
+  placesDisponibles Int
+  tempsMaxEcart     String
+  eventId           String
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  driverId          String
+  driver            User     @relation("DriverCarpools", fields: [driverId], references: [id])
+}
